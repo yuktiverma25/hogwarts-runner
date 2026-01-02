@@ -1,330 +1,263 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hogwarts Run: The Final Battle</title>
-    <style>
-        :root { --gold: #d4af37; --maroon: #740001; --parchment: #fdf5e6; --dark: #0a0a0a; }
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Georgia', serif; color: white; user-select: none; }
-        
-        /* UI Screens */
-        .screen {
-            position: absolute; width: 100%; height: 100%; 
-            background: radial-gradient(circle, #2c1e16 0%, #000 100%);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 100; transition: opacity 0.5s;
-        }
-        .hidden { display: none !important; }
-
-        .menu-btn {
-            background: var(--maroon); color: var(--gold);
-            border: 3px double var(--gold); padding: 12px 30px;
-            margin: 8px; font-size: 20px; cursor: pointer;
-            width: 280px; border-radius: 10px; transition: 0.2s;
-            font-variant: small-caps; font-weight: bold;
-        }
-        .menu-btn:hover { background: var(--gold); color: var(--maroon); transform: scale(1.05); }
-
-        /* Panels */
-        .panel { 
-            background: rgba(0,0,0,0.8); padding: 25px; border: 2px solid var(--gold);
-            border-radius: 15px; max-width: 90%; width: 400px;
-        }
-        .row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; }
-        
-        canvas { display: block; filter: contrast(1.1) brightness(1.1); }
-        
-        /* HUD */
-        #hud {
-            position: absolute; top: 15px; left: 15px; z-index: 10;
-            background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px;
-            border-left: 4px solid var(--gold); font-family: monospace;
-        }
-        #task-box {
-            position: absolute; top: 15px; right: 15px; z-index: 10;
-            background: rgba(116, 0, 1, 0.4); padding: 10px; border-radius: 8px;
-            text-align: right; border-right: 4px solid var(--gold);
-        }
-        .key-val { color: var(--gold); font-weight: bold; }
-    </style>
+<meta charset="UTF-8">
+<title>Hogwarts Run</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI}
+body{background:#050512;color:#fff;overflow:hidden}
+canvas{display:block;margin:auto}
+.panel{
+position:absolute;top:0;left:0;width:100%;height:100%;
+display:flex;flex-direction:column;justify-content:center;align-items:center;
+background:rgba(0,0,0,.85)
+}
+button{
+padding:12px 30px;margin:8px;font-size:18px;
+border:none;border-radius:8px;
+background:#6b4eff;color:#fff;cursor:pointer
+}
+button:hover{background:#8a74ff}
+.hidden{display:none}
+#hud{
+position:absolute;top:10px;left:10px;font-size:14px;
+background:rgba(0,0,0,.4);padding:8px;border-radius:6px
+}
+</style>
 </head>
 <body>
 
-    <div id="hud" class="hidden">
-        Score: <span id="score" class="key-val">0</span><br>
-        Potions: <span id="potion-count" class="key-val">0</span><br>
-        Keys: <span id="key-count" class="key-val">0</span>
-    </div>
+<canvas id="game"></canvas>
 
-    <div id="task-box" class="hidden">
-        <b>MISSION</b><br>
-        <span id="task-desc">Evade Voldemort</span>
-    </div>
+<div id="menu" class="panel">
+<h1>🏃 Hogwarts Run</h1>
+<button onclick="startGame()">PLAY</button>
+<button onclick="openSelect()">SELECT CHARACTER</button>
+<button onclick="toggleSound()">SOUND</button>
+</div>
 
-    <div id="main-menu" class="screen">
-        <h1 style="color:var(--gold); text-shadow: 0 0 20px var(--maroon); font-size: 3.5rem; margin-bottom: 0;">HOGWARTS RUN</h1>
-        <p style="color:var(--gold); margin-top: 0; letter-spacing: 2px;">ESCAPE THE DARK LORD</p>
-        <button class="menu-btn" onclick="startGame()">⚡ CAST PLAY ⚡</button>
-        <button class="menu-btn" onclick="switchScreen('char-screen')">CUSTOMIZE HERO</button>
-        <button class="menu-btn" onclick="switchScreen('shop-screen')">DIAGON ALLEY (SHOP)</button>
-        <button class="menu-btn" onclick="toggleAudio()">SOUND: <span id="s-status">OFF</span></button>
-        <div style="margin-top: 20px; color: var(--gold)">Best Score: <span id="best-score">0</span></div>
-    </div>
+<div id="select" class="panel hidden">
+<h2>Select Character</h2>
+<select onchange="currentChar=this.value">
+<option>Harry</option>
+<option>Hermione</option>
+<option>Ron</option>
+<option>Neville</option>
+</select><br>
+Dress <input type="color" onchange="chars[currentChar].dress=this.value"><br>
+Face <input type="color" onchange="chars[currentChar].face=this.value">
+<button onclick="closePanels()">BACK</button>
+</div>
 
-    <div id="char-screen" class="screen hidden">
-        <div class="panel">
-            <h2 style="text-align:center; color:var(--gold)">Wizard Identity</h2>
-            <div class="row">
-                <label>Character</label>
-                <select id="char-name" onchange="syncPlayer()">
-                    <option value="Harry">Harry</option>
-                    <option value="Hermione">Hermione</option>
-                    <option value="Ron">Ron</option>
-                    <option value="Neville">Neville</option>
-                </select>
-            </div>
-            <div class="row">
-                <label>Robe Color</label>
-                <input type="color" id="robe-color" value="#740001" onchange="syncPlayer()">
-            </div>
-            <div class="row">
-                <label>Skin Tone</label>
-                <input type="color" id="skin-color" value="#ffdbac" onchange="syncPlayer()">
-            </div>
-            <button class="menu-btn" onclick="switchScreen('main-menu')">SAVE CHANGES</button>
-        </div>
-    </div>
+<div id="hud" class="hidden">
+Score: <span id="score">0</span><br>
+Potions: <span id="coins">0</span><br>
+Keys: <span id="keys">0</span><br>
+Task: <span id="task">Collect 20 Potions</span>
+</div>
 
-    <div id="shop-screen" class="screen hidden">
-        <div class="panel">
-            <h2 style="text-align:center; color:var(--gold)">Diagon Alley Upgrades</h2>
-            <div class="row">
-                <span>Broom Duration (5 Keys)</span>
-                <button onclick="buyUpgrade('broom')" class="menu-btn" style="width:80px; font-size:14px">BUY</button>
-            </div>
-            <div class="row">
-                <span>Score Multiplier (10 Keys)</span>
-                <button onclick="buyUpgrade('score')" class="menu-btn" style="width:80px; font-size:14px">BUY</button>
-            </div>
-            <p style="text-align:center">Available Keys: <span id="shop-keys" class="key-val">0</span></p>
-            <button class="menu-btn" onclick="switchScreen('main-menu')">BACK</button>
-        </div>
-    </div>
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+resize();window.onresize=resize;
 
-    <canvas id="canvas"></canvas>
+let running=false,soundOn=true;
+let score=0,coins=0,keys=0;
+let speed=8,gravity=1;
+let broom=0,shield=0,magnet=0;
+let voldemortDist=300;
+let taskTarget=20;
+let highScore=localStorage.getItem("hogwartsScore")||0;
 
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // --- Persistence & State ---
-        let gameData = JSON.parse(localStorage.getItem('hogwartsRunData')) || {
-            best: 0, keys: 0, broomLevel: 1, scoreMult: 1,
-            char: { name: 'Harry', robe: '#740001', skin: '#ffdbac' }
-        };
+const lanes=3;
+const chars={
+Harry:{dress:"#2e7d32",face:"#f5cfa0",jump:16},
+Hermione:{dress:"#6a1b9a",face:"#f2c9ac",jump:17},
+Ron:{dress:"#b71c1c",face:"#f7d7b5",jump:15},
+Neville:{dress:"#f9a825",face:"#f3d0aa",jump:14}
+};
+let currentChar="Harry";
 
-        let state = 'MENU';
-        let lane = 1; 
-        let score = 0, potions = 0, currentKeys = 0;
-        let jumpY = 0, isJumping = false;
-        let broomActive = false, broomTime = 0;
-        let obstacles = [], collectibles = [], speed = 6;
-        let frame = 0, voldyY = 0;
+const player={lane:1,y:0,vy:0};
+let obstacles=[],items=[];
 
-        // --- Core Functions ---
-        function save() { 
-            localStorage.setItem('hogwartsRunData', JSON.stringify(gameData)); 
-            document.getElementById('best-score').innerText = gameData.best;
-            document.getElementById('shop-keys').innerText = gameData.keys;
-        }
-        save();
+document.addEventListener("keydown",e=>{
+if(!running)return;
+if(e.key==="ArrowLeft")player.lane=Math.max(0,player.lane-1);
+if(e.key==="ArrowRight")player.lane=Math.min(lanes-1,player.lane+1);
+if(e.key==="ArrowUp"&&player.y===0)player.vy=chars[currentChar].jump;
+if(e.key==="p")running=!running;
+});
+canvas.addEventListener("dblclick",()=>broom=250);
 
-        function switchScreen(id) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-            if(id !== 'none') document.getElementById(id).classList.remove('hidden');
-        }
+// Mobile swipe
+let touchX=0;
+canvas.addEventListener("touchstart",e=>touchX=e.touches[0].clientX);
+canvas.addEventListener("touchend",e=>{
+let dx=e.changedTouches[0].clientX-touchX;
+if(dx>50)player.lane=Math.min(lanes-1,player.lane+1);
+if(dx<-50)player.lane=Math.max(0,player.lane-1);
+});
 
-        function syncPlayer() {
-            gameData.char.name = document.getElementById('char-name').value;
-            gameData.char.robe = document.getElementById('robe-color').value;
-            gameData.char.skin = document.getElementById('skin-color').value;
-            save();
-        }
+function resize(){
+canvas.width=innerWidth;
+canvas.height=innerHeight;
+}
 
-        function buyUpgrade(type) {
-            if (type === 'broom' && gameData.keys >= 5) {
-                gameData.keys -= 5; gameData.broomLevel++;
-            } else if (type === 'score' && gameData.keys >= 10) {
-                gameData.keys -= 10; gameData.scoreMult++;
-            } else { alert("Not enough keys! Collect mystery boxes."); }
-            save();
-        }
+function startGame(){
+menu.classList.add("hidden");
+hud.classList.remove("hidden");
+running=true;
+score=coins=keys=0;
+obstacles=[];items=[];
+player.lane=1;player.y=0;player.vy=0;
+voldemortDist=300;
+loop();
+if(soundOn)music();
+}
 
-        // --- Audio Synth (No Copyright) ---
-        let audio;
-        function toggleAudio() {
-            if (!audio) {
-                audio = new (window.AudioContext || window.webkitAudioContext)();
-                playNotes();
-                document.getElementById('s-status').innerText = "ON";
-            }
-        }
-        function playNotes() {
-            const freq = [493, 659, 783, 739, 659, 987, 880, 739];
-            let t = audio.currentTime;
-            freq.forEach(f => {
-                let osc = audio.createOscillator();
-                let g = audio.createGain();
-                osc.frequency.setValueAtTime(f, t);
-                g.gain.setValueAtTime(0.1, t);
-                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-                osc.connect(g); g.connect(audio.destination);
-                osc.start(t); osc.stop(t + 0.6);
-                t += 0.6;
-            });
-            setTimeout(playNotes, 6000);
-        }
+function loop(){
+if(!running)return;
+ctx.clearRect(0,0,canvas.width,canvas.height);
 
-        // --- Game Engine ---
-        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        window.addEventListener('resize', resize); resize();
+// Background
+ctx.fillStyle="rgb(20,20,40)";
+ctx.fillRect(0,0,canvas.width,canvas.height);
 
-        window.addEventListener('keydown', e => {
-            if(state !== 'PLAYING') return;
-            if(e.key === 'ArrowLeft' && lane > 0) lane--;
-            if(e.key === 'ArrowRight' && lane < 2) lane++;
-            if(e.key === 'ArrowUp' && !isJumping) startJump();
-        });
+// Physics
+player.vy-=gravity;
+player.y=Math.max(0,player.y+player.vy);
+if(player.y===0)player.vy=0;
 
-        window.addEventListener('dblclick', () => {
-            if(potions >= 5 && !broomActive) {
-                broomActive = true; potions -= 5;
-                broomTime = 200 + (gameData.broomLevel * 50);
-            }
-        });
+// Spawn
+if(Math.random()<0.025)obstacles.push({lane:randLane(),y:canvas.height});
+if(Math.random()<0.03)items.push({
+lane:randLane(),y:canvas.height,
+type:Math.random()<0.7?"potion":"box"
+});
 
-        function startJump() {
-            isJumping = true; let t = 0;
-            let j = setInterval(() => {
-                jumpY = Math.sin(t) * 120; t += 0.12;
-                if(t >= Math.PI) { clearInterval(j); isJumping = false; jumpY = 0; }
-            }, 16);
-        }
+drawPlayer();
+updateObstacles();
+updateItems();
+drawVoldemort();
 
-        function startGame() {
-            state = 'PLAYING'; switchScreen('none');
-            document.getElementById('hud').classList.remove('hidden');
-            document.getElementById('task-box').classList.remove('hidden');
-            score = 0; potions = 0; currentKeys = 0; speed = 7; obstacles = []; collectibles = [];
-            loop();
-        }
+score++;
+speed+=0.0005;
 
-        function loop() {
-            if(state !== 'PLAYING') return;
-            ctx.clearRect(0,0,canvas.width, canvas.height);
-            frame++; speed += 0.001;
-            
-            drawWorld();
-            handleLogic();
-            drawActors();
-            
-            score += Math.floor(1 * gameData.scoreMult);
-            document.getElementById('score').innerText = score;
-            document.getElementById('potion-count').innerText = potions;
-            document.getElementById('key-count').innerText = currentKeys;
-            
-            requestAnimationFrame(loop);
-        }
+updateHUD();
+requestAnimationFrame(loop);
+}
 
-        function drawWorld() {
-            // Perspective Road
-            ctx.fillStyle = '#111';
-            ctx.beginPath();
-            ctx.moveTo(canvas.width*0.4, 0); ctx.lineTo(canvas.width*0.6, 0);
-            ctx.lineTo(canvas.width, canvas.height); ctx.lineTo(0, canvas.height);
-            ctx.fill();
-            
-            // Lane Lines
-            ctx.strokeStyle = var(--gold);
-            ctx.setLineDash([30, 30]);
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(canvas.width*0.47, 0); ctx.lineTo(canvas.width*0.3, canvas.height);
-            ctx.moveTo(canvas.width*0.53, 0); ctx.lineTo(canvas.width*0.7, canvas.height);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
+function randLane(){return Math.floor(Math.random()*lanes)}
 
-        function handleLogic() {
-            // Spawn Obstacles (Dementors/Walls)
-            if(frame % 80 === 0) obstacles.push({ lane: Math.floor(Math.random()*3), y: 0 });
-            // Spawn Potions/Boxes
-            if(frame % 50 === 0) collectibles.push({ 
-                lane: Math.floor(Math.random()*3), y: 0, 
-                type: Math.random() > 0.15 ? 'POTION' : 'MYSTERY' 
-            });
+function drawPlayer(){
+const w=canvas.width/lanes;
+const x=player.lane*w+w/2;
+const y=canvas.height-130-player.y;
 
-            obstacles.forEach((o, i) => {
-                o.y += speed;
-                let x = (canvas.width/2) + (o.lane - 1) * (o.y * 0.4);
-                ctx.fillStyle = '#444'; ctx.fillRect(x - (o.y*0.05), o.y, o.y*0.1, 20); // Wall
-                
-                // Collision
-                if(o.y > canvas.height - 120 && o.y < canvas.height - 40 && o.lane === lane && !broomActive && !isJumping) {
-                    gameOver();
-                }
-            });
+ctx.fillStyle=chars[currentChar].dress;
+ctx.fillRect(x-20,y,40,60);
+ctx.fillStyle=chars[currentChar].face;
+ctx.beginPath();ctx.arc(x,y-10,14,0,7);ctx.fill();
 
-            collectibles.forEach((c, i) => {
-                c.y += speed;
-                let x = (canvas.width/2) + (c.lane - 1) * (c.y * 0.4);
-                ctx.fillStyle = c.type === 'POTION' ? '#4f4' : '#f4f';
-                ctx.beginPath(); ctx.arc(x, c.y, 5 + (c.y*0.02), 0, 7); ctx.fill();
+if(broom>0){
+ctx.strokeStyle="gold";
+ctx.lineWidth=3;
+ctx.beginPath();
+ctx.moveTo(x-35,y+30);ctx.lineTo(x+35,y+30);
+ctx.stroke();
+broom--;
+}
+}
 
-                if(c.y > canvas.height - 120 && c.y < canvas.height - 40 && c.lane === lane) {
-                    if(c.type === 'POTION') potions++; else currentKeys++;
-                    collectibles.splice(i, 1);
-                }
-            });
+function updateObstacles(){
+const w=canvas.width/lanes;
+obstacles.forEach(o=>{
+o.y-=speed;
+ctx.fillStyle="crimson";
+ctx.fillRect(o.lane*w+w/2-25,o.y,50,50);
 
-            if(broomActive) {
-                broomTime--;
-                if(broomTime <= 0) broomActive = false;
-            }
-        }
+if(o.y<canvas.height-150&&o.y>canvas.height-210&&o.lane===player.lane){
+if(shield>0)shield--;
+else voldemortDist-=25;
+}
+});
+}
 
-        function drawActors() {
-            let px = (canvas.width/2) + (lane - 1) * (canvas.height * 0.35);
-            let py = canvas.height - 120 - jumpY;
+function updateItems(){
+const w=canvas.width/lanes;
+items.forEach(i=>{
+i.y-=speed;
+ctx.fillStyle=i.type==="potion"?"cyan":"gold";
+ctx.beginPath();
+ctx.arc(i.lane*w+w/2,i.y,14,0,7);
+ctx.fill();
 
-            // Player
-            ctx.fillStyle = gameData.char.robe;
-            ctx.fillRect(px - 20, py, 40, 50); // Body
-            ctx.fillStyle = gameData.char.skin;
-            ctx.beginPath(); ctx.arc(px, py-15, 15, 0, 7); ctx.fill(); // Head
-            
-            if(broomActive) {
-                ctx.strokeStyle = '#8b4513'; ctx.lineWidth = 6;
-                ctx.beginPath(); ctx.moveTo(px-50, py+30); ctx.lineTo(px+50, py+30); ctx.stroke();
-            }
+if(i.y<canvas.height-150&&i.y>canvas.height-210&&i.lane===player.lane){
+if(i.type==="potion"){
+coins++;
+if(coins>=taskTarget){
+keys++;
+taskTarget+=10;
+}
+}else activatePower();
+}
+});
+}
 
-            // Voldemort chasing behind
-            voldyY = 100 + Math.sin(frame*0.05)*20;
-            ctx.fillStyle = 'rgba(255,255,255,0.1)';
-            ctx.font = "20px Georgia";
-            ctx.fillText("VOLDEMORT IS GAINING...", canvas.width/2 - 100, voldyY);
-        }
+function activatePower(){
+let r=Math.random();
+if(r<0.25)broom=300;
+else if(r<0.5)shield=200;
+else if(r<0.75)magnet=200;
+else speed+=2;
+}
 
-        function gameOver() {
-            state = 'OVER';
-            gameData.keys += currentKeys;
-            if(score > gameData.best) gameData.best = score;
-            save();
-            switchScreen('main-menu');
-            alert(`Stupefied! Score: ${score}. Keys Collected: ${currentKeys}`);
-        }
+function drawVoldemort(){
+voldemortDist+=0.3;
+ctx.fillStyle="purple";
+ctx.fillRect(canvas.width/2-35,canvas.height+voldemortDist,70,90);
+if(voldemortDist>80)gameOver();
+}
 
-    </script>
+function updateHUD(){
+scoreEl.textContent=score;
+coinsEl.textContent=coins;
+keysEl.textContent=keys;
+taskEl.textContent="Collect "+taskTarget+" Potions";
+}
+
+function gameOver(){
+running=false;
+if(score>highScore){
+localStorage.setItem("hogwartsScore",score);
+highScore=score;
+}
+alert("Voldemort caught you!\nScore: "+score+"\nHigh Score: "+highScore);
+location.reload();
+}
+
+function openSelect(){
+menu.classList.add("hidden");
+select.classList.remove("hidden");
+}
+function closePanels(){
+select.classList.add("hidden");
+menu.classList.remove("hidden");
+}
+function toggleSound(){soundOn=!soundOn}
+
+function music(){
+const a=new AudioContext();
+const o=a.createOscillator();
+o.type="sine";
+o.frequency.setValueAtTime(392,a.currentTime);
+o.frequency.exponentialRampToValueAtTime(784,a.currentTime+1.5);
+o.connect(a.destination);
+o.start();
+o.stop(a.currentTime+1.5);
+}
+</script>
 </body>
 </html>
