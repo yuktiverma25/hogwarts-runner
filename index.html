@@ -1,235 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Hogwarts Run</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-body{margin:0;background:#0a0a1a;color:white;font-family:Arial;overflow:hidden}
-canvas{display:block;margin:auto;background:#111}
-.menu,.panel{
-position:absolute;top:0;left:0;width:100%;height:100%;
-display:flex;flex-direction:column;justify-content:center;align-items:center;
-background:rgba(0,0,0,0.85)
-}
-.hidden{display:none}
-button{
-padding:12px 28px;margin:8px;font-size:18px;
-border:none;border-radius:8px;
-background:#6b4eff;color:white;cursor:pointer
-}
-#hud{
-position:absolute;top:10px;left:10px;font-size:14px
-}
-.preview{
-width:80px;height:120px;margin:10px;
-border:2px solid white;display:flex;flex-direction:column;
-align-items:center;justify-content:center
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hogwarts Run HD</title>
+    <style>
+        :root { --gold: #d4af37; --maroon: #740001; --bg: #050505; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: var(--bg); font-family: 'Segoe UI', sans-serif; }
+        
+        /* High-End UI */
+        #ui-layer { position: absolute; width: 100%; height: 100%; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, rgba(44,30,22,0.9) 0%, rgba(0,0,0,0.95) 100%); }
+        .hidden { display: none !important; }
+        
+        .menu-card { background: rgba(0,0,0,0.8); padding: 40px; border: 3px solid var(--gold); border-radius: 20px; text-align: center; box-shadow: 0 0 30px var(--maroon); }
+        .btn { background: var(--maroon); color: var(--gold); border: 2px solid var(--gold); padding: 15px 40px; margin: 10px; cursor: pointer; font-size: 22px; font-weight: bold; border-radius: 50px; width: 280px; transition: 0.3s; text-transform: uppercase; }
+        .btn:hover { background: var(--gold); color: var(--maroon); transform: scale(1.05); }
+
+        #hud { position: absolute; top: 20px; left: 20px; color: var(--gold); font-size: 24px; z-index: 50; text-shadow: 2px 2px 4px #000; font-weight: bold; pointer-events: none; }
+        canvas { display: block; filter: saturate(1.2) contrast(1.1); }
+        
+        .config-row { display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 15px 0; font-size: 18px; color: #fff; }
+        input[type="color"] { width: 50px; height: 30px; border: none; cursor: pointer; }
+    </style>
 </head>
 <body>
 
-<canvas id="game"></canvas>
+    <div id="hud" class="hidden">
+        SCORE: <span id="scoreVal">0</span> | POTIONS: <span id="potionVal">0</span> | KEYS: <span id="keyVal">0</span>
+    </div>
 
-<div id="menu" class="menu">
-<h1>🏃 Hogwarts Run</h1>
-<button onclick="startCountdown()">PLAY</button>
-<button onclick="openSelect()">SELECT CHARACTER</button>
-</div>
+    <div id="menu-screen" class="ui-layer">
+        <div class="menu-card">
+            <h1 style="color:var(--gold); font-size: 50px; margin: 0 0 20px 0;">⚡ HOGWARTS RUN</h1>
+            <button class="btn" onclick="startGame()">Start Duel</button>
+            <button class="btn" onclick="showScreen('custom-screen')">Select Hero</button>
+            <button class="btn" onclick="toggleAudio()">Music: <span id="music-status">OFF</span></button>
+        </div>
+    </div>
 
-<div id="select" class="panel hidden">
-<h2>Select Character</h2>
+    <div id="custom-screen" class="hidden" style="position:absolute; width:100%; height:100%; z-index:101; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.9);">
+        <div class="menu-card">
+            <h2 style="color:var(--gold)">CHARACTER EDITOR</h2>
+            <div class="config-row">
+                <label>HERO:</label>
+                <select id="heroSelect" style="padding:5px;"><option>Harry</option><option>Hermione</option><option>Ron</option><option>Neville</option></select>
+            </div>
+            <div class="config-row"><label>ROBE COLOR:</label> <input type="color" id="robeColor" value="#740001"></div>
+            <div class="config-row"><label>SKIN COLOR:</label> <input type="color" id="skinColor" value="#ffdbac"></div>
+            <button class="btn" onclick="showScreen('menu-screen')">SAVE MAGIC</button>
+        </div>
+    </div>
 
-<div class="preview" id="charPreview"></div>
+    <canvas id="gameCanvas"></canvas>
 
-<select onchange="selectChar(this.value)">
-<option>Harry</option>
-<option>Hermione</option>
-<option>Ron</option>
-<option>Neville</option>
-</select>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let gameActive = false, score = 0, potions = 0, keys = 0;
+        let lane = 1, speed = 7, broomActive = false;
+        let obstacles = [], items = [], frame = 0;
 
-Dress <input type="color" onchange="chars[currentChar].dress=this.value;drawPreview()">
-Face <input type="color" onchange="chars[currentChar].face=this.value;drawPreview()">
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.onresize = resize; resize();
 
-<button onclick="closePanels()">BACK</button>
-</div>
+        function showScreen(id) {
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('custom-screen').classList.add('hidden');
+            document.getElementById(id).classList.remove('hidden');
+        }
 
-<div id="hud" class="hidden">
-Score: <span id="score">0</span><br>
-Potions: <span id="coins">0</span>
-</div>
+        // Controls
+        window.addEventListener('keydown', (e) => {
+            if(!gameActive) return;
+            if(e.key === "ArrowLeft" && lane > 0) lane--;
+            if(e.key === "ArrowRight" && lane < 2) lane++;
+        });
 
-<script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-canvas.width=innerWidth;
-canvas.height=innerHeight;
+        window.addEventListener('dblclick', () => {
+            if(potions >= 5 && !broomActive) {
+                broomActive = true; potions -= 5;
+                setTimeout(() => broomActive = false, 6000);
+            }
+        });
 
-let running=false, countdown=0;
-let score=0, coins=0;
-let speed=8;
-let voldemortDist=800; // FAR AWAY (FIXED)
+        function startGame() {
+            showScreen('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            gameActive = true; score = 0; potions = 0; keys = 0; speed = 7;
+            obstacles = []; items = [];
+            requestAnimationFrame(update);
+        }
 
-const lanes=3;
-const chars={
-Harry:{dress:"#2e7d32",face:"#f5cfa0"},
-Hermione:{dress:"#6a1b9a",face:"#f2c9ac"},
-Ron:{dress:"#b71c1c",face:"#f7d7b5"},
-Neville:{dress:"#f9a825",face:"#f3d0aa"}
-};
-let currentChar="Harry";
+        function update() {
+            if(!gameActive) return;
+            ctx.fillStyle = "#0a0a0a";
+            ctx.fillRect(0,0,canvas.width, canvas.height);
+            
+            drawTracks();
+            handleLogic();
+            drawHero();
+            drawVoldemort();
+            
+            score++;
+            document.getElementById('scoreVal').innerText = score;
+            document.getElementById('potionVal').innerText = potions;
+            document.getElementById('keyVal').innerText = keys;
+            requestAnimationFrame(update);
+        }
 
-const player={lane:1,y:0,vy:0};
-let obstacles=[],items=[];
+        function drawTracks() {
+            ctx.strokeStyle = "rgba(212,175,55,0.2)";
+            ctx.lineWidth = 4;
+            for(let i=1; i<3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * (canvas.width/3), 0);
+                ctx.lineTo(i * (canvas.width/3), canvas.height);
+                ctx.stroke();
+            }
+        }
 
-document.addEventListener("keydown",e=>{
-if(!running)return;
-if(e.key==="ArrowLeft")player.lane=Math.max(0,player.lane-1);
-if(e.key==="ArrowRight")player.lane=Math.min(lanes-1,player.lane+1);
-if(e.key==="ArrowUp" && player.y===0)player.vy=16;
-});
+        function handleLogic() {
+            frame++;
+            if(frame % 60 === 0) obstacles.push({x: Math.floor(Math.random()*3), y: -100});
+            if(frame % 45 === 0) items.push({x: Math.floor(Math.random()*3), y: -100, type: Math.random() > 0.2 ? 'P' : 'K'});
 
-function startCountdown(){
-menu.classList.add("hidden");
-hud.classList.remove("hidden");
-countdown=3;
-const timer=setInterval(()=>{
-if(countdown===0){
-clearInterval(timer);
-startGame();
-}
-countdown--;
-},1000);
-drawCountdown();
-}
+            // Move Obstacles (HD Dementors)
+            obstacles.forEach((obs, i) => {
+                obs.y += speed;
+                const ox = (obs.x * (canvas.width/3)) + (canvas.width/6);
+                ctx.fillStyle = "rgba(50,50,50,0.8)";
+                ctx.beginPath(); ctx.ellipse(ox, obs.y, 30, 50, 0, 0, Math.PI*2); ctx.fill();
+                
+                if(!broomActive && obs.y > canvas.height-140 && obs.y < canvas.height-60 && obs.x === lane) {
+                    gameActive = false;
+                    alert("STUPEFIED! Final Score: " + score);
+                    location.reload();
+                }
+            });
 
-function drawCountdown(){
-ctx.clearRect(0,0,canvas.width,canvas.height);
-ctx.fillStyle="white";
-ctx.font="60px Arial";
-ctx.textAlign="center";
-ctx.fillText(countdown>0?countdown:"RUN!",canvas.width/2,canvas.height/2);
-if(countdown>=0)requestAnimationFrame(drawCountdown);
-}
+            // Move Items (HD Glow)
+            items.forEach((it, i) => {
+                it.y += speed;
+                const ix = (it.x * (canvas.width/3)) + (canvas.width/6);
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = it.type === 'P' ? "#0f0" : "#ff0";
+                ctx.fillStyle = it.type === 'P' ? "#0f0" : "#ff0";
+                ctx.beginPath(); ctx.arc(ix, it.y, 15, 0, 7); ctx.fill();
+                ctx.shadowBlur = 0;
 
-function startGame(){
-running=true;
-score=coins=0;
-voldemortDist=800;
-loop();
-}
+                if(it.y > canvas.height-140 && it.y < canvas.height-60 && it.x === lane) {
+                    if(it.type === 'P') potions++; else keys++;
+                    items.splice(i, 1);
+                }
+            });
+            speed += 0.002;
+        }
 
-function loop(){
-if(!running)return;
-ctx.clearRect(0,0,canvas.width,canvas.height);
+        function drawHero() {
+            const hX = (lane * (canvas.width/3)) + (canvas.width/6);
+            const hY = canvas.height - 100;
+            
+            // HD Hero
+            ctx.fillStyle = document.getElementById('robeColor').value;
+            ctx.fillRect(hX - 25, hY, 50, 70);
+            ctx.fillStyle = document.getElementById('skinColor').value;
+            ctx.beginPath(); ctx.arc(hX, hY-20, 20, 0, 7); ctx.fill();
+            
+            if(broomActive) {
+                ctx.strokeStyle = "#ffd700"; ctx.lineWidth = 8;
+                ctx.beginPath(); ctx.moveTo(hX-50, hY+40); ctx.lineTo(hX+50, hY+40); ctx.stroke();
+            }
+        }
 
-drawRoad();
+        function drawVoldemort() {
+            ctx.fillStyle = "rgba(255,0,0,0.15)";
+            ctx.font = "bold 30px Arial";
+            ctx.fillText("VOLDEMORT IS CHASING...", canvas.width/2 - 180, 100 + Math.sin(frame/10)*10);
+        }
 
-player.vy-=1;
-player.y=Math.max(0,player.y+player.vy);
-if(player.y===0)player.vy=0;
-
-if(Math.random()<0.02)obstacles.push({lane:randLane(),y:canvas.height});
-if(Math.random()<0.03)items.push({lane:randLane(),y:canvas.height});
-
-drawPlayer();
-updateObjects();
-drawVoldemort();
-
-score++;
-scoreEl.textContent=score;
-coinsEl.textContent=coins;
-
-requestAnimationFrame(loop);
-}
-
-function drawRoad(){
-const w=canvas.width/lanes;
-ctx.strokeStyle="#444";
-for(let i=1;i<lanes;i++){
-ctx.beginPath();
-ctx.moveTo(i*w,0);
-ctx.lineTo(i*w,canvas.height);
-ctx.stroke();
-}
-}
-
-function drawPlayer(){
-const w=canvas.width/lanes;
-const x=player.lane*w+w/2;
-const y=canvas.height-120-player.y;
-
-ctx.fillStyle=chars[currentChar].dress;
-ctx.fillRect(x-20,y,40,60);
-ctx.fillStyle=chars[currentChar].face;
-ctx.beginPath();
-ctx.arc(x,y-10,14,0,Math.PI*2);
-ctx.fill();
-}
-
-function updateObjects(){
-const w=canvas.width/lanes;
-obstacles.forEach(o=>{
-o.y-=speed;
-ctx.fillStyle="crimson";
-ctx.fillRect(o.lane*w+w/2-25,o.y,50,50);
-if(o.y<canvas.height-150 && o.lane===player.lane){
-voldemortDist-=40;
-}
-});
-items.forEach(i=>{
-i.y-=speed;
-ctx.fillStyle="cyan";
-ctx.beginPath();
-ctx.arc(i.lane*w+w/2,i.y,12,0,Math.PI*2);
-ctx.fill();
-if(i.y<canvas.height-150 && i.lane===player.lane){
-coins++;
-}
-});
-}
-
-function drawVoldemort(){
-voldemortDist-=0.3; // slow chase
-ctx.fillStyle="purple";
-ctx.fillRect(canvas.width/2-30,canvas.height+voldemortDist,60,80);
-if(voldemortDist<120)gameOver();
-}
-
-function gameOver(){
-running=false;
-alert("Voldemort caught you!\nScore: "+score);
-location.reload();
-}
-
-function randLane(){return Math.floor(Math.random()*lanes)}
-
-function openSelect(){
-menu.classList.add("hidden");
-select.classList.remove("hidden");
-drawPreview();
-}
-function closePanels(){
-select.classList.add("hidden");
-menu.classList.remove("hidden");
-}
-
-function selectChar(c){currentChar=c;drawPreview()}
-
-function drawPreview(){
-const p=document.getElementById("charPreview");
-p.innerHTML="";
-const c=document.createElement("canvas");
-c.width=60;c.height=100;
-const x=c.getContext("2d");
-x.fillStyle=chars[currentChar].dress;
-x.fillRect(20,30,20,40);
-x.fillStyle=chars[currentChar].face;
-x.beginPath();x.arc(30,20,10,0,7);x.fill();
-p.appendChild(c);
-}
-</script>
+        let audio;
+        function toggleAudio() {
+            if(!audio) {
+                audio = new AudioContext();
+                const osc = audio.createOscillator();
+                const g = audio.createGain();
+                osc.type = 'sawtooth'; g.gain.value = 0.02;
+                osc.connect(g); g.connect(audio.destination);
+                osc.start();
+                document.getElementById('music-status').innerText = "ON";
+            }
+        }
+    </script>
 </body>
 </html>
